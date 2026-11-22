@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "30 23 * * *"     # UTC 23:30 = 北京 07:30
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只跑不发信（测源能不能用）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,7 +70,14 @@ jobs:
         run: python scripts/collect.py 2>&1 | tail -n 40
 
       - name: 采集 → 打分 → 改写 → 渲染 → 发信
-        run: python scripts/run_daily.py --no-collect
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python scripts/run_daily.py --no-collect --dry-run
+          else
+            python scripts/run_daily.py --no-collect
+          fi
 
       - name: 失败时提醒
         if: failure()
