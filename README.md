@@ -132,7 +132,8 @@ python scripts/run_daily.py --no-collect  # 复用已有候选（调版式时用
 ## 巡检
 
 ```bash
-python -m unittest discover -s tests -v     # 单元测试
+python -m unittest discover -s tests -v     # 单元测试（14 个）
+python scripts/selfcheck.py                 # 系统自检：密钥/详情页/跨日去重/源/状态
 python scripts/probe.py                     # 逐源体检（结构变了先跑这个）
 python scripts/collect.py --only 品观网       # 单源调试
 ```
@@ -162,10 +163,27 @@ schtasks /Change /TN "BeautyBrief-0730" /DISABLE   # 关闭
 | **赢商网**（品牌/开关店/选址） | ❌ 403 | 只允许国内 IP |
 | **联商网**（品牌频道） | ❌ 超时 | 同上 |
 | 化妆品报 hzpgc | ❌ SSL/403 | — |
-| 青眼 | ⚠️ 0 条 | 首页只有旧文（源侧问题，本机同样 0） |
+| 青眼 | ❌ 已移除 | 首页只有旧热榜，真实最新列表的接口（Handler1.ashx）只返回 2018 年的旧专题 |
 | 搜狗微信 | ⚠️ 0 条 | 当天无新结果时为空，正常 |
 
-试过三种公共代理（allorigins / codetabs / corsproxy）拉这两个站，全部 522/403，不可用。
+**补国内源的办法（中转钩子已内置）**：部署一个 Cloudflare Worker 之类的中转，然后设两个环境变量
+（`.env` 或 Actions Secrets 都行）：
 
-结论：**云端能保证「每天 07:30 必到」，但线下渠道源少两个**，线下条目会依赖亿邦 + 美妆头条 + 聚美丽渠道。
-要补齐只有三条路：Cloudflare Worker 中转、国内小 VPS 做采集机、或买赢商通。
+```
+BEAUTY_PROXY_PREFIX=https://your-worker.workers.dev/?url={}
+BEAUTY_PROXY_HOSTS=winshang.com,linkshop.com
+```
+
+命中的域名会改走中转，其余源照常直连。没有中转时行为不变（那两个源失败但不影响出刊）。
+
+### 详情页托管（已开）
+
+- 地址：https://dtjdgb0506.github.io/beauty-brief
+- 仓库已转为 public（Pages 免费版要求），代码与配置不含任何密钥
+- 每期生成 `site/<内容日>/p1..pN.html`，workflow 部署到 Pages，**邮件里的「看详细分析」直接指向这里**
+- 历史期数随 `site/` 一起提交回仓库，往期入口不会丢
+
+### 线下渠道保底
+
+跨日去重后如果线下渠道不足 2 条，会从「最近发过、但确实是线下动作」的池子里破例补一条（标记为重复），
+保证线下栏不会空着；补进来的条目会把总条数顶超的部分从其他栏目砍掉。

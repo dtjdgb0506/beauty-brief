@@ -46,10 +46,10 @@ def check_detail_links() -> None:
     html = card.read_text(encoding="utf-8")
     links = re.findall(r'href="([^"]+)"[^>]*>看详细分析', html)
     web_base = load_profile().get("delivery", {}).get("web_base", "")
-    external = [x for x in links if x.startswith("http")]
-    only_source = bool(links) and all("p" not in Path(x).name for x in links)
-    say(f"[{'WARN' if not web_base else 'OK'}] 详情页链接：web_base={'空（回退到原文链接）' if not web_base else web_base}")
-    say(f"      卡片里 {len(links)} 个『看详细分析』，其中 {len(external)} 个指向外站（原文）")
+    to_own_site = [x for x in links if web_base and x.startswith(web_base)]
+    to_source = [x for x in links if not (web_base and x.startswith(web_base))]
+    say(f"[{'OK' if web_base else 'WARN'}] 详情页链接：web_base={web_base or '空（回退到原文链接）'}")
+    say(f"      卡片里 {len(links)} 个『看详细分析』：{len(to_own_site)} 个指向详情页，{len(to_source)} 个指向原文")
     if not web_base:
         say("      影响：详情页（site/<日期>/pN.html）在云端生成后就丢了，读者点进去是原文，看不到我们的深度分析")
 
@@ -84,9 +84,17 @@ def check_cross_day_dup() -> None:
 
 
 def check_history_store() -> None:
-    hist = list((ROOT / "output" / "archive").glob("*")) if (ROOT / "output" / "archive").exists() else []
-    say(f"[{'WARN' if not hist else 'OK'}] 是否有跨日去重/跟踪用的历史库："
-        f"{'没有（同一事件可能连着几天出现）' if not hist else f'{len(hist)} 天'}")
+    hist = ROOT / "state" / "history.json"
+    if not hist.exists():
+        say("[WARN] 没有跨日去重历史库（同一事件可能连着几天出现）")
+        return
+    try:
+        data = read_json(hist)
+    except Exception:  # noqa: BLE001
+        say("[WARN] history.json 解析失败")
+        return
+    days = sorted({e.get("day") for e in data.get("items", [])})
+    say(f"[OK] 跨日去重历史库：{len(data.get('items', []))} 条，覆盖 {len(days)} 天 {days[-3:]}")
 
 
 def check_sources() -> None:
@@ -120,9 +128,11 @@ def check_tests() -> None:
     ok = "OK" in t
     say(f"[{'OK' if ok else 'FAIL'}] 单测：{t.strip().splitlines()[-1] if t.strip() else '无输出'}")
     body = (ROOT / "tests" / "test_pipeline.py").read_text(encoding="utf-8")
-    missing = [k for k in ("content_day", "similarity", "dedupe") if k not in body]
+    missing = [k for k in ("recent_fingerprints", "title_fp", "similarity") if k not in body]
     if missing:
         say(f"[INFO] 单测没覆盖：{missing}")
+    else:
+        say("[OK] 单测已覆盖：跨日指纹去重 / 标题相似度 / 详情页链接")
 
 
 def check_card_quality() -> None:

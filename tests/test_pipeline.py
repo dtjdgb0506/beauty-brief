@@ -109,6 +109,22 @@ class TestScoring(unittest.TestCase):
                          title_fp("山姆中国今年已新开10家门店 追平年度开店纪录！"))
         self.assertNotEqual(title_fp("山姆新开10家门店"), title_fp("珀莱雅收购花知晓"))
 
+    def test_similarity_same_event(self):
+        a = "珀莱雅收购花知晓，贝泰妮收购踩坑，美妆大并购时代来了？"
+        b = "珀莱雅收购花知晓 美妆大并购时代来了"
+        self.assertGreater(score.similarity(a, b), 0.45)
+
+    def test_recent_fingerprints_window(self):
+        from datetime import date
+        from common import title_fp
+        hist = {"items": [
+            {"day": "2026-11-21", "fp": title_fp("山姆新开10家门店")},
+            {"day": "2026-11-10", "fp": title_fp("很早的新闻")},
+        ]}
+        got = score.recent_fingerprints(hist, date(2026, 11, 22), keep_days=3)
+        self.assertIn(title_fp("山姆新开10家门店"), got)
+        self.assertNotIn(title_fp("很早的新闻"), got)
+
     def test_detail_link_uses_web_base(self):
         profile = load_profile()
         profile["delivery"]["web_base"] = "https://x.github.io/repo"

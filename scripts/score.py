@@ -149,6 +149,19 @@ def similarity(a: str, b: str) -> float:
     return len(A & B) / len(A | B)
 
 
+def recent_fingerprints(hist: dict, ref_day, keep_days: int = HISTORY_KEEP_DAYS) -> set[str]:
+    """从历史库里挑出"最近 keep_days 天内发过"的标题指纹。"""
+    out: set[str] = set()
+    for e in (hist or {}).get("items", []):
+        try:
+            d = date.fromisoformat(e.get("day", ""))
+        except ValueError:
+            continue
+        if 0 <= (ref_day - d).days <= keep_days:
+            out.add(e.get("fp", ""))
+    return out
+
+
 def score_item(item: dict, profile: dict, lex: dict, ref_day: str | None = None) -> dict:
     blob = f"{item['title']} {item.get('summary', '')}"
     watch = profile.get("watch", {})
@@ -259,14 +272,7 @@ def main() -> int:
             hist = read_json(HISTORY)
         except Exception:  # noqa: BLE001
             hist = {"items": []}
-        for e in hist.get("items", []):
-            try:
-                d = __import__("datetime").date.fromisoformat(e.get("day", ""))
-            except ValueError:
-                continue
-            age = (ref_day - d).days
-            if 0 <= age <= HISTORY_KEEP_DAYS:
-                recent_fps.add(e.get("fp", ""))
+        recent_fps = recent_fingerprints(hist, ref_day)
         if recent_fps:
             history_dups = [it for it in items if title_fp(it["title"]) in recent_fps]
             fresh = [it for it in items if title_fp(it["title"]) not in recent_fps]
@@ -366,6 +372,13 @@ def main() -> int:
             picked.append(cand)
         if spare:
             log(f"线下渠道保底：从历史重复池补 {min(len(spare), 2 - len(channel_now))} 条（标记为重复）")
+        # 补进来的不能把总条数顶超，超了从非渠道栏里砍分最低的
+        while len(picked) > max_items:
+            cand = min((x for x in picked if x["section"] != "channel"),
+                       key=lambda x: x["score"], default=None)
+            if cand is None:
+                break
+            picked.remove(cand)
 
     order = {"channel": 0, "product": 1, "device": 2, "trend": 3}
     picked.sort(key=lambda x: (order.get(x["section"], 9), -x["score"]))
