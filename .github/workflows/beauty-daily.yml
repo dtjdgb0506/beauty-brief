@@ -32,9 +32,6 @@ jobs:
   daily:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,12 +78,20 @@ jobs:
             python scripts/run_daily.py --no-collect
           fi
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+      - name: publish site to gh-pages
+        if: always()
+        run: |
+          if [ ! -d site ]; then echo "no site dir"; exit 0; fi
+          cd site
+          git init -q
+          git config user.name "beauty-brief-bot"
+          git config user.email "beauty-brief-bot@users.noreply.github.com"
+          touch .nojekyll
+          git add -A
+          git commit -qm "pages: $(date -u +%F)" || true
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: notify failure
         if: failure()
