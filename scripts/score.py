@@ -15,8 +15,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
-    ROOT, clean_text, days_ago, load_lexicon, load_profile, log, read_json, write_json,
+    ROOT, clean_text, days_ago, load_lexicon, load_profile, log, read_json, title_fp,
+    write_json,
 )
+
+HISTORY = ROOT / "state" / "history.json"
+HISTORY_KEEP_DAYS = 3          # 最近 3 天发过的，不再重复上
 
 TIER_W = {"core": 1.25, "analysis": 1.15, "trade": 1.10, "channel": 1.05,
           "reg": 1.15, "cn": 0.85, "weak": 0.55}
@@ -204,6 +208,7 @@ def main() -> int:
                     help="只汇总这一天的稿子（默认不限）；再前一天也保留，防止漏掉深夜稿")
     ap.add_argument("--in", dest="inp", default=None)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--no-history", action="store_true", help="忽略跨日去重（补发/回溯时用）")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
@@ -238,6 +243,31 @@ def main() -> int:
         else:
             items = [it for it in items if 0 <= _back(it)] or items
         log(f"内容日 {args.content_day}：{before} 条候选中 {len(items)} 条落在 {args.content_day} 往前的时间窗内")
+
+    # 跨日去重：最近 3 天已经发过的事件，不再重复上（否则每天看起来一模一样）
+    ref_day = __import__("datetime").date.fromisoformat(args.content_day or args.date)
+    recent_fps: set[str] = set()
+    if HISTORY.exists() and not args.no_history:
+        try:
+            hist = read_json(HISTORY)
+        except Exception:  # noqa: BLE001
+            hist = {"items": []}
+        for e in hist.get("items", []):
+            try:
+                d = __import__("datetime").date.fromisoformat(e.get("day", ""))
+            except ValueError:
+                continue
+            age = (ref_day - d).days
+            if 0 <= age <= HISTORY_KEEP_DAYS:
+                recent_fps.add(e.get("fp", ""))
+        if recent_fps:
+            fresh = [it for it in items if title_fp(it["title"]) not in recent_fps]
+            dropped = len(items) - len(fresh)
+            if len(fresh) >= 8:
+                items = fresh
+                log(f"跨日去重：跳过最近 {HISTORY_KEEP_DAYS} 天已发过的 {dropped} 条")
+            else:
+                log(f"跨日去重：只滤掉 {dropped} 条（剩下的不够一期，保留重复以保出刊）")
 
     scored, dropped_noise = [], 0
     for it in items:

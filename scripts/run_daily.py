@@ -14,13 +14,49 @@ import subprocess
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import ROOT, load_profile, log, read_json, write_json  # noqa: E402
 
 PY = sys.executable
 STATE = ROOT / "state" / "sent.json"
+HISTORY = ROOT / "state" / "history.json"
 LOGS = ROOT / "logs"
+HISTORY_KEEP_DAYS = 30
+
+
+def update_history(content_day: str) -> None:
+    """把本期条目记进历史库，供后续几天跨日去重。"""
+    sel_path = ROOT / "output" / "selected.json"
+    if not sel_path.exists():
+        return
+    selected = read_json(sel_path)
+    hist = {"items": []}
+    if HISTORY.exists():
+        try:
+            hist = read_json(HISTORY)
+        except Exception:  # noqa: BLE001
+            hist = {"items": []}
+    known = {(e.get("fp"), e.get("day")) for e in hist.get("items", [])}
+    from common import title_fp
+
+    for it in selected.get("items", []):
+        fp = title_fp(it["title"])
+        if (fp, content_day) in known:
+            continue
+        hist["items"].append({"day": content_day, "fp": fp, "title": it["title"][:80]})
+    # 只留最近 30 天，文件不会无限长
+    cutoff = datetime.now().date() - timedelta(days=HISTORY_KEEP_DAYS)
+    kept = []
+    for e in hist.get("items", []):
+        try:
+            if date.fromisoformat(e["day"]) >= cutoff:
+                kept.append(e)
+        except ValueError:
+            continue
+    hist["items"] = kept
+    HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    HISTORY.write_text(json.dumps(hist, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"历史库更新：{len(kept)} 条（{HISTORY}）")
 
 
 def run_step(name: str, args: list[str], log_path: Path) -> tuple[bool, str]:
@@ -112,6 +148,7 @@ def main() -> int:
     if not args.dry_run:
         state[run_day] = datetime.now().isoformat(timespec="seconds")
         write_json(STATE, state)
+        update_history(content_day)
         print(f"\n完成：{html} 已发出（内容日 {content_day}），状态写入 {STATE}")
     else:
         print(f"\n完成（dry-run，未发信）：{html}")

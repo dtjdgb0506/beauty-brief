@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: beauty-brief
@@ -66,3 +66,16 @@ jobs:
       - name: notify failure
         if: failure()
         run: python scripts/notify_failure.py
+
+      - name: commit history
+        if: always()
+        run: |
+          git config user.name "beauty-brief-bot"
+          git config user.email "beauty-brief-bot@users.noreply.github.com"
+          git add state/history.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "state: history $(date -u +%F) [skip ci]"
+            git push
+          else
+            echo "history 无变化"
+          fi

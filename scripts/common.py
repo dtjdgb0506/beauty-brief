@@ -77,6 +77,12 @@ def fingerprint(title: str, url: str) -> str:
     return hashlib.sha1((clean_text(title) + "|" + url).encode("utf-8")).hexdigest()[:12]
 
 
+def title_fp(title: str) -> str:
+    """只按标题算指纹，用于跨日去重（同一件事不同源、URL 不同，标题相近）。"""
+    t = re.sub(r"[^\w\u4e00-\u9fff]+", "", clean_text(title)).lower()
+    return hashlib.sha1(t.encode("utf-8")).hexdigest()[:16]
+
+
 # ---------- 日期 ----------
 DATE_PATTERNS = [
     re.compile(r"(20\d{2})[-/年](\d{1,2})[-/月](\d{1,2})"),
