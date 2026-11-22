@@ -1,0 +1,183 @@
+# 采集源。type 决定用哪个解析器：
+#   rss   = 标准 RSS/Atom
+#   pinguan = 品观网 /media/ 的 cov-card 卡片（含 JSON-LD，但日期在 DOM）
+#   jumeili = 聚美丽列表（相对时间，需进详情页补日期）
+#   qingyan = 青眼首页（标题 + 绝对日期 + Details.aspx?id=）
+#   mzt     = 美妆头条列表（article-library-card）
+#   winshang= 赢商网列表（win-new-list1，带"开关店/品牌/选址"标签）
+#   linkshop= 联商网（gb2312 页面）
+#   cnpharm = 中国食品药品网 /hzp/（监管动态）
+#   sogou   = 搜狗微信搜索（只有标题+摘要，弱信号）
+#
+# tier 影响打分：core（国际权威）/ trade（行业媒体）/ channel（渠道媒体）/ reg（监管）/ weak（弱信号）
+
+[[source]]
+name = "品观网"
+type = "pinguan"
+url = "https://www.pinguan.com/media/"
+pages = 2
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "聚美丽-行业"
+type = "jumeili"
+url = "https://www.jumeili.cn/industry/1.html"
+pages = 1
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "聚美丽-品牌"
+type = "jumeili"
+url = "https://www.jumeili.cn/brand/1.html"
+pages = 1
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "聚美丽-渠道"
+type = "jumeili"
+url = "https://www.jumeili.cn/sale/1.html"
+pages = 1
+section = "channel"
+tier = "trade"
+
+[[source]]
+name = "聚美丽-科研"
+type = "jumeili"
+url = "https://www.jumeili.cn/keyan/1.html"
+pages = 1
+section = "device"
+tier = "trade"
+
+[[source]]
+name = "青眼"
+type = "qingyan"
+url = "https://www.iqingyan.cn/index.aspx"
+pages = 1
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "美妆头条"
+type = "mzt"
+url = "http://www.mztoutiao.com/news/all/"
+pages = 1
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "美妆头条-快讯"
+type = "mzt"
+url = "http://www.mztoutiao.com/flashes/"
+pages = 1
+section = "product"
+tier = "trade"
+
+[[source]]
+name = "赢商网-开关店"
+type = "winshang"
+url = "http://news.winshang.com/list-7001.html"
+pages = 1
+section = "channel"
+tier = "channel"
+
+[[source]]
+name = "赢商网-品牌"
+type = "winshang"
+url = "http://news.winshang.com/list-12.html"
+pages = 1
+section = "channel"
+tier = "channel"
+
+[[source]]
+name = "联商网-品牌"
+type = "linkshop"
+url = "http://www.linkshop.com/news/pp/"
+pages = 1
+section = "channel"
+tier = "channel"
+
+[[source]]
+name = "亿邦动力-零售"
+type = "ebrun"
+url = "https://www.ebrun.com/retail/"
+pages = 1
+section = "channel"
+tier = "channel"
+
+[[source]]
+name = "中国食品药品网-化妆品"
+type = "cnpharm"
+url = "https://www.cnpharm.com/hzp/"
+pages = 1
+section = "device"
+tier = "reg"
+
+[[source]]
+name = "中国食品药品网-监管资讯"
+type = "cnpharm"
+url = "https://www.cnpharm.com/hzp/jgzx/"
+pages = 1
+section = "device"
+tier = "reg"
+
+# ===== 国际 RSS =====
+[[source]]
+name = "Cosmetics Business"
+type = "rss"
+url = "https://cosmeticsbusiness.com/rss"
+section = "trend"
+tier = "core"
+
+[[source]]
+name = "WWD Beauty"
+type = "rss"
+url = "https://wwd.com/beauty-industry-news/feed/"
+section = "trend"
+tier = "core"
+
+[[source]]
+name = "GCI Magazine"
+type = "rss"
+url = "https://www.gcimagazine.com/feed"
+section = "trend"
+tier = "core"
+
+[[source]]
+name = "Cosmetics & Toiletries"
+type = "rss"
+url = "https://www.cosmeticsandtoiletries.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22home%22%7D"
+section = "trend"
+tier = "core"
+
+[[source]]
+name = "Mintel"
+type = "rss"
+url = "https://www.mintel.com/feed/"
+section = "trend"
+tier = "analysis"
+
+[[source]]
+name = "36氪"
+type = "rss"
+url = "https://www.36kr.com/feed"
+section = "trend"
+tier = "cn"
+
+# ===== 公众号弱信号（标题+摘要，不抓正文）=====
+[[source]]
+name = "公众号-护肤"
+type = "sogou"
+url = "https://weixin.sogou.com/weixin?type=2&query=%E6%8A%A4%E8%82%A4"
+section = "weak"
+tier = "weak"
+
+[[source]]
+name = "公众号-械字号"
+type = "sogou"
+url = "https://weixin.sogou.com/weixin?type=2&query=%E6%A2%B0%E5%AD%97%E5%8F%B7"
+section = "weak"
+tier = "weak"
+
