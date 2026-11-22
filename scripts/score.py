@@ -106,7 +106,14 @@ def pick_section(item: dict, title: str, blob: str, lex: dict) -> tuple[str, dic
     brand_hit = any(brand_in(blob, b) for b in watch.get("brands", []))
 
     # 1) 标题里就有抽检/处罚/新规/标准 → 械字号与监管
-    if t_counts.get("regulatory", 0) >= 1:
+    #    "标准"太泛（"流程和标准"不是监管新闻），必须和发布/检验/检测/修订同现才算
+    reg_title = [w for w in hint.get("regulatory", []) if w in title]
+    if "标准" in reg_title and not any(
+            x in title for x in ("发布", "实施", "修订", "检验", "检测", "抽检", "新国标")):
+        reg_title = [w for w in reg_title if w != "标准"]
+    if "标准" in reg_title and "流程" in title:
+        reg_title = [w for w in reg_title if w != "标准"]
+    if reg_title:
         return "device", counts
     # 2) 明确的械字号信号（标题 ≥1，或正文 ≥2 且源本身是械字号栏目）
     if t_counts.get("device", 0) >= 1 or (b_counts.get("device", 0) >= 2 and src_section == "device"):
@@ -261,13 +268,19 @@ def main() -> int:
             if 0 <= age <= HISTORY_KEEP_DAYS:
                 recent_fps.add(e.get("fp", ""))
         if recent_fps:
+            history_dups = [it for it in items if title_fp(it["title"]) in recent_fps]
             fresh = [it for it in items if title_fp(it["title"]) not in recent_fps]
             dropped = len(items) - len(fresh)
             if len(fresh) >= 8:
                 items = fresh
                 log(f"跨日去重：跳过最近 {HISTORY_KEEP_DAYS} 天已发过的 {dropped} 条")
             else:
+                history_dups = []
                 log(f"跨日去重：只滤掉 {dropped} 条（剩下的不够一期，保留重复以保出刊）")
+        else:
+            history_dups = []
+    else:
+        history_dups = []
 
     scored, dropped_noise = [], 0
     for it in items:
@@ -338,6 +351,21 @@ def main() -> int:
             if len(picked) >= max_items:
                 break
             picked.append(cand)
+
+    # 线下渠道保底：去重后渠道栏可能见底，从"最近发过、但确实是线下动作"的池子里破例补 1 条
+    channel_now = [x for x in picked if x["section"] == "channel"]
+    if len(channel_now) < 2 and history_dups:
+        spare = []
+        for d in history_dups:
+            s = score_item(d, profile, lex, ref_day=args.content_day)
+            if s["section"] == "channel" and s["score"] >= 12:
+                spare.append(s)
+        spare.sort(key=lambda x: x["score"], reverse=True)
+        for cand in spare[: 2 - len(channel_now)]:
+            cand["repeat"] = True
+            picked.append(cand)
+        if spare:
+            log(f"线下渠道保底：从历史重复池补 {min(len(spare), 2 - len(channel_now))} 条（标记为重复）")
 
     order = {"channel": 0, "product": 1, "device": 2, "trend": 3}
     picked.sort(key=lambda x: (order.get(x["section"], 9), -x["score"]))

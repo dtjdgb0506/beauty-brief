@@ -51,13 +51,6 @@ pages = 1
 section = "device"
 tier = "trade"
 
-[[source]]
-name = "青眼"
-type = "qingyan"
-url = "https://www.iqingyan.cn/index.aspx"
-pages = 1
-section = "product"
-tier = "trade"
 
 [[source]]
 name = "美妆头条"

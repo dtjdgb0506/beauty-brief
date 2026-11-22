@@ -94,6 +94,30 @@ class TestScoring(unittest.TestCase):
         s = score.score_item(it, self.profile, self.lex)
         self.assertEqual(s["section"], "device")
 
+    def test_generic_standard_not_regulatory(self):
+        # "流程和标准"不是监管新闻，不能判进械字号与监管
+        it = self._item("四千多项流程和标准：揭秘水羊工艺创新实验室的工艺科学体系")
+        s = score.score_item(it, self.profile, self.lex)
+        self.assertNotEqual(s["section"], "device")
+        # 真监管新闻仍然进
+        it2 = self._item("化妆品7项检验新标准发布，微生物检测体系重写")
+        self.assertEqual(score.score_item(it2, self.profile, self.lex)["section"], "device")
+
+    def test_title_fp_ignores_punctuation(self):
+        from common import title_fp
+        self.assertEqual(title_fp("山姆中国今年已新开10家门店，追平年度开店纪录"),
+                         title_fp("山姆中国今年已新开10家门店 追平年度开店纪录！"))
+        self.assertNotEqual(title_fp("山姆新开10家门店"), title_fp("珀莱雅收购花知晓"))
+
+    def test_detail_link_uses_web_base(self):
+        profile = load_profile()
+        profile["delivery"]["web_base"] = "https://x.github.io/repo"
+        href = render.detail_href({"url": "https://e.com/1"}, 3, "2026-11-22",
+                                  profile["delivery"]["web_base"])
+        self.assertEqual(href, "https://x.github.io/repo/2026-11-22/p3.html")
+        href2 = render.detail_href({"url": "https://e.com/1"}, 3, "2026-11-22", "")
+        self.assertEqual(href2, "https://e.com/1")
+
     def test_brand_match_false_positive(self):
         # "截至本公告日" 里含"至本"，不能算命中品牌
         self.assertFalse(score.brand_in("截至本公告日，公司完成发放", "至本"))

@@ -8,7 +8,7 @@ time = "07:30"              # 北京时间，汇总前一天的内容
 timezone = "Asia/Shanghai"
 max_items = 10
 min_items = 6
-web_base = ""               # 有静态托管地址后填，邮件里的"看详细"会用它拼绝对链接
+web_base = "https://dtjdgb0506.github.io/beauty-brief"               # 有静态托管地址后填，邮件里的"看详细"会用它拼绝对链接
 fresh_days = 4              # 中文日更源只收最近 N 天发布的稿子（国际低频源自动放宽到 14 天）
 dedupe_hours = 72           # 同一标题在 N 小时内不重复出现
 

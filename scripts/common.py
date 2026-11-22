@@ -4,8 +4,10 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
 import re
 import time
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -44,6 +46,15 @@ def decode_bytes(raw: bytes, content_type: str = "", forced: str | None = None) 
 
 
 def fetch(url: str, timeout: int = 15, retries: int = 2, forced_encoding: str | None = None) -> str:
+    """抓页面。若配置了 BEAUTY_PROXY_PREFIX，命中的域名会走中转（云端补国内源用）。
+
+    例：BEAUTY_PROXY_PREFIX="https://your-worker.workers.dev/?url={}"
+    """
+    prefix = os.environ.get("BEAUTY_PROXY_PREFIX", "").strip()
+    proxy_hosts = [h.strip() for h in os.environ.get(
+        "BEAUTY_PROXY_HOSTS", "winshang.com,linkshop.com").split(",") if h.strip()]
+    if prefix and any(h in url for h in proxy_hosts):
+        url = prefix.replace("{}", urllib.parse.quote(url, safe=""))
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:

@@ -1,16 +1,24 @@
 name: beauty-brief
 
-# 每天北京时间 07:30 汇总前一天的公开信息并发邮件，跑在 GitHub 服务器上，关机也照发。
-# Secrets 需要：MAIL_SMTP_HOST / MAIL_SMTP_PORT / MAIL_USER / MAIL_PASS /
-#              MAIL_FROM / MAIL_FROM_NAME / MAIL_TO / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY
+# 每天北京时间 07:30 汇总前一天的公开信息，发邮件 + 发布详情页到 GitHub Pages。
+# 跑在 GitHub 服务器上，电脑关不关机都不影响。
+# Secrets：MAIL_SMTP_HOST / MAIL_SMTP_PORT / MAIL_USER / MAIL_PASS /
+#          MAIL_FROM / MAIL_FROM_NAME / MAIL_TO / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY
 
 on:
   schedule:
-    - cron: "30 23 * * *"
+    - cron: "30 23 * * *"     # UTC 23:30 = 北京 07:30
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "dry run (no email, no state commit)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: beauty-brief
@@ -23,7 +31,10 @@ env:
 jobs:
   daily:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,21 +72,35 @@ jobs:
         run: python scripts/collect.py
 
       - name: score enrich render send
-        run: python scripts/run_daily.py --no-collect
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python scripts/run_daily.py --no-collect --dry-run
+          else
+            python scripts/run_daily.py --no-collect
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
 
       - name: notify failure
         if: failure()
         run: python scripts/notify_failure.py
 
-      - name: commit history
-        if: always()
+      - name: commit state and site
+        if: always() && inputs.dry_run != true
         run: |
           git config user.name "beauty-brief-bot"
           git config user.email "beauty-brief-bot@users.noreply.github.com"
-          git add state/history.json 2>/dev/null || true
+          git add site state 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m "state: history $(date -u +%F) [skip ci]"
+            git commit -m "state: $(date -u +%F) [skip ci]"
             git push
           else
-            echo "history 无变化"
+            echo "no state change"
           fi
