@@ -137,13 +137,35 @@ python scripts/probe.py                     # 逐源体检（结构变了先跑�
 python scripts/collect.py --only 品观网       # 单源调试
 ```
 
-## 定时（每天 07:30）
+## 定时（每天 07:30，电脑关机也发）
 
+**首选：GitHub Actions（已上线）**
+
+- 仓库：`dtjdgb0506/beauty-brief`（private）
+- 工作流：`.github/workflows/beauty-daily.yml`，cron `30 23 * * *`（UTC 23:30 = 北京 07:30）
+- Secrets 已配：`MAIL_*`、`LLM_*`（在仓库 Settings → Secrets → Actions）
+- 手动跑一次：`gh workflow run beauty-daily.yml --repo dtjdgb0506/beauty-brief`
+- 看日志：`gh run list --repo dtjdgb0506/beauty-brief`
+
+**备用：本机 Windows 计划任务**（默认禁用，避免和云端重复发）
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/install_task.ps1
-schtasks /Query /TN "BeautyBrief-0730" /V /FO LIST   # 查
-schtasks /Run   /TN "BeautyBrief-0730"               # 立刻跑一次
+schtasks /Change /TN "BeautyBrief-0730" /ENABLE    # 打开
+schtasks /Change /TN "BeautyBrief-0730" /DISABLE   # 关闭
 ```
 
-注意：Windows 计划任务只在**本机开机/唤醒**时触发（`StartWhenAvailable` 会补跑错过的）。
-要关机也照发，得把仓库搬到 GitHub Actions（判据：跑在美国节点，中文垂类源可达性需另测）。
+### 云端源可达性（2026-11-22 在美国节点实测）
+
+| 源 | 云端 | 说明 |
+|---|---|---|
+| 品观网 / 聚美丽 ×4 / 美妆头条 / 亿邦动力 / 中国食品药品网 ×2 | ✅ | 正常出稿 |
+| 国际 RSS（Cosmetics Business / WWD / GCI / C&T / Mintel）/ 36氪 | ✅ | 正常 |
+| **赢商网**（品牌/开关店/选址） | ❌ 403 | 只允许国内 IP |
+| **联商网**（品牌频道） | ❌ 超时 | 同上 |
+| 化妆品报 hzpgc | ❌ SSL/403 | — |
+| 青眼 | ⚠️ 0 条 | 首页只有旧文（源侧问题，本机同样 0） |
+| 搜狗微信 | ⚠️ 0 条 | 当天无新结果时为空，正常 |
+
+试过三种公共代理（allorigins / codetabs / corsproxy）拉这两个站，全部 522/403，不可用。
+
+结论：**云端能保证「每天 07:30 必到」，但线下渠道源少两个**，线下条目会依赖亿邦 + 美妆头条 + 聚美丽渠道。
+要补齐只有三条路：Cloudflare Worker 中转、国内小 VPS 做采集机、或买赢商通。
