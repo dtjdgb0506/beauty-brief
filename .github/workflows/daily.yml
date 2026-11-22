@@ -1,20 +1,13 @@
-name: 美妆情报
+name: beauty-brief
 
-# 每天北京时间 07:30 汇总前一天的公开信息并发邮件。
-# 跑在 GitHub 的服务器上，电脑关不关机都不影响。
-# 需要在本仓库 Settings → Secrets and variables → Actions 配好：
-#   MAIL_SMTP_HOST / MAIL_SMTP_PORT / MAIL_USER / MAIL_PASS / MAIL_FROM / MAIL_FROM_NAME / MAIL_TO
-#   LLM_BASE_URL / LLM_MODEL / LLM_API_KEY
+# 每天北京时间 07:30 汇总前一天的公开信息并发邮件，跑在 GitHub 服务器上，关机也照发。
+# Secrets 需要：MAIL_SMTP_HOST / MAIL_SMTP_PORT / MAIL_USER / MAIL_PASS /
+#              MAIL_FROM / MAIL_FROM_NAME / MAIL_TO / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY
 
 on:
   schedule:
-    - cron: "30 23 * * *"     # UTC 23:30 = 北京 07:30
+    - cron: "30 23 * * *"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "只跑不发信（测源能不能用）"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -38,7 +31,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 写 .env（从 Secrets，不打印）
+      - name: write env file
         env:
           MAIL_SMTP_HOST: ${{ secrets.MAIL_SMTP_HOST }}
           MAIL_SMTP_PORT: ${{ secrets.MAIL_SMTP_PORT }}
@@ -51,57 +44,25 @@ jobs:
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
-          {
-            echo "MAIL_SMTP_HOST=$MAIL_SMTP_HOST"
-            echo "MAIL_SMTP_PORT=$MAIL_SMTP_PORT"
-            echo "MAIL_USER=$MAIL_USER"
-            echo "MAIL_PASS=$MAIL_PASS"
-            echo "MAIL_FROM=$MAIL_FROM"
-            echo "MAIL_FROM_NAME=$MAIL_FROM_NAME"
-            echo "MAIL_TO=$MAIL_TO"
-            echo "LLM_BASE_URL=$LLM_BASE_URL"
-            echo "LLM_MODEL=$LLM_MODEL"
-            echo "LLM_API_KEY=$LLM_API_KEY"
-          } > .env
-          echo ".env 已写入（内容不打印）"
+          printf 'MAIL_SMTP_HOST=%s\n' "$MAIL_SMTP_HOST" > .env
+          printf 'MAIL_SMTP_PORT=%s\n' "$MAIL_SMTP_PORT" >> .env
+          printf 'MAIL_USER=%s\n' "$MAIL_USER" >> .env
+          printf 'MAIL_PASS=%s\n' "$MAIL_PASS" >> .env
+          printf 'MAIL_FROM=%s\n' "$MAIL_FROM" >> .env
+          printf 'MAIL_FROM_NAME=%s\n' "$MAIL_FROM_NAME" >> .env
+          printf 'MAIL_TO=%s\n' "$MAIL_TO" >> .env
+          printf 'LLM_BASE_URL=%s\n' "$LLM_BASE_URL" >> .env
+          printf 'LLM_MODEL=%s\n' "$LLM_MODEL" >> .env
+          printf 'LLM_API_KEY=%s\n' "$LLM_API_KEY" >> .env
+          echo "env file written"
 
-      - name: 源可达性快照（失败不阻断）
+      - name: collect sources
         continue-on-error: true
-        run: python scripts/collect.py 2>&1 | tail -n 40
+        run: python scripts/collect.py
 
-      - name: 采集 → 打分 → 改写 → 渲染 → 发信
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            python scripts/run_daily.py --no-collect --dry-run
-          else
-            python scripts/run_daily.py --no-collect
-          fi
+      - name: score enrich render send
+        run: python scripts/run_daily.py --no-collect
 
-      - name: 失败时提醒
+      - name: notify failure
         if: failure()
-        env:
-          MAIL_SMTP_HOST: ${{ secrets.MAIL_SMTP_HOST }}
-          MAIL_SMTP_PORT: ${{ secrets.MAIL_SMTP_PORT }}
-          MAIL_USER: ${{ secrets.MAIL_USER }}
-          MAIL_PASS: ${{ secrets.MAIL_PASS }}
-          MAIL_TO: ${{ secrets.MAIL_TO }}
-        run: |
-          printf 'Subject: [美妆情报] 今天没发成\n\n流水线失败，看 Actions 日志：%s\n' \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /tmp/msg.txt
-          python - <<'PY'
-import os, smtplib, ssl
-from email.message import EmailMessage
-cfg = os.environ
-msg = EmailMessage()
-msg["Subject"] = "[美妆情报] 今天没发成"
-msg["From"] = cfg.get("MAIL_FROM") or cfg["MAIL_USER"]
-msg["To"] = cfg.get("MAIL_TO", "").split(",")[0]
-msg.set_content(f"流水线失败，看 Actions 日志：{os.environ.get('GITHUB_SERVER_URL','')}/{os.environ.get('GITHUB_REPOSITORY','')}/actions/runs/{os.environ.get('GITHUB_RUN_ID','')}")
-ctx = ssl.create_default_context()
-with smtplib.SMTP_SSL(cfg["MAIL_SMTP_HOST"], int(cfg.get("MAIL_SMTP_PORT") or 465), context=ctx, timeout=30) as s:
-    s.login(cfg["MAIL_USER"], cfg["MAIL_PASS"])
-    s.send_message(msg)
-print("失败提醒已发送")
-PY
+        run: python scripts/notify_failure.py
